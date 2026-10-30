@@ -12,6 +12,7 @@ interface GameState {
   launchPower: number
   lanesLit: boolean[]
   lastEvent: string | null
+  eventSeq: number
   isNewBest: boolean
   addScore: (n: number, label?: string) => void
   setCharging: (c: boolean) => void
@@ -30,10 +31,11 @@ const EVENT_MS = 2200
 
 export const useGame = create<GameState>((set, get) => {
   // Clear an event after a short display unless a newer event replaced it.
-  const armEventClear = (ev: string | null) => {
-    if (!ev) return
+  // Compared by sequence number, not label — repeated same-label events
+  // (e.g. two bumper hits in a row) must not be cut short by an older timer.
+  const armEventClear = (seq: number) => {
     setTimeout(() => {
-      if (get().lastEvent === ev) set({ lastEvent: null })
+      if (get().eventSeq === seq) set({ lastEvent: null })
     }, EVENT_MS)
   }
   return {
@@ -46,11 +48,16 @@ export const useGame = create<GameState>((set, get) => {
   launchPower: 0,
   lanesLit: [false, false, false],
   lastEvent: null,
+  eventSeq: 0,
   isNewBest: false,
 
   addScore: (n, label) => {
-    set((s) => ({ score: s.score + n, lastEvent: label ?? s.lastEvent }))
-    armEventClear(label ?? null)
+    set((s) => ({
+      score: s.score + n,
+      lastEvent: label ?? s.lastEvent,
+      eventSeq: label ? s.eventSeq + 1 : s.eventSeq,
+    }))
+    if (label) armEventClear(get().eventSeq)
   },
 
   setCharging: (charging) => set({ charging, launchPower: charging ? get().launchPower : 0 }),
@@ -66,7 +73,6 @@ export const useGame = create<GameState>((set, get) => {
     ),
 
   drainBall: () => {
-    if (get().ballsLeft > 1) armEventClear('BALL LOST')
     set((s) => {
       const left = s.ballsLeft - 1
       if (left > 0) {
@@ -76,6 +82,7 @@ export const useGame = create<GameState>((set, get) => {
           tilted: false,
           lanesLit: [false, false, false],
           lastEvent: 'BALL LOST',
+          eventSeq: s.eventSeq + 1,
         }
       }
       return {
@@ -86,6 +93,9 @@ export const useGame = create<GameState>((set, get) => {
         best: Math.max(s.best, s.score),
       }
     })
+    if (get().phase === 'ready' && get().lastEvent === 'BALL LOST') {
+      armEventClear(get().eventSeq)
+    }
   },
 
   newGame: () =>
@@ -113,8 +123,8 @@ export const useGame = create<GameState>((set, get) => {
 
   setTilted: (tilted) => set({ tilted }),
   setEvent: (lastEvent) => {
-    set({ lastEvent })
-    armEventClear(lastEvent)
+    set((s) => ({ lastEvent, eventSeq: lastEvent ? s.eventSeq + 1 : s.eventSeq }))
+    if (lastEvent) armEventClear(get().eventSeq)
   },
   }
 })
