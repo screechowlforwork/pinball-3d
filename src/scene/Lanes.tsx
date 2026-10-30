@@ -79,8 +79,8 @@ function Target({ x, z, rotY }: { x: number; z: number; rotY: number }) {
 
   return (
     <group position={[x, 0, z]} rotation={[0, rotY, 0]}>
-      <RigidBody type="fixed" colliders={false} onIntersectionEnter={onEnter}>
-        <CuboidCollider args={[0.008, 0.018, 0.012]} position={[0, 0.018, 0]} sensor />
+      {/* Score on contact with the standup itself — direction-independent. */}
+      <RigidBody type="fixed" colliders={false} onCollisionEnter={onEnter}>
         <CuboidCollider args={[0.006, 0.018, 0.01]} position={[0, 0.018, 0.012]} restitution={0.4} />
       </RigidBody>
       <mesh position={[0, 0.018, 0]} castShadow>

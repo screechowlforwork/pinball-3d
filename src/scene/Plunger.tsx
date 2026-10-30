@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { RigidBody } from '@react-three/rapier'
 import type { RapierRigidBody } from '@react-three/rapier'
-import { COLORS } from '../game/constants'
+import { COLORS, TABLE } from '../game/constants'
 import { useGame } from '../game/store'
 import { sfx } from '../game/audio'
 
@@ -16,9 +16,28 @@ export function Plunger({ ballRef }: { ballRef: React.RefObject<RapierRigidBody 
   const mesh = useRef<THREE.Group>(null)
   const power = useRef(0)
   const wasCharging = useRef(false)
+  const laneRest = useRef(0)
 
   useFrame((_, dt) => {
     const s = useGame.getState()
+
+    // A weak plunge that can't clear the lane drops back to the plunger.
+    // Once the ball settles in the lane, serve it again instead of locking
+    // the game in 'playing' with no way to launch.
+    const ball = ballRef.current
+    if (s.phase === 'playing' && ball) {
+      const p = ball.translation()
+      const v = ball.linvel()
+      const inLane = p.x > TABLE.laneX && p.z > 0.3
+      const slow = Math.hypot(v.x, v.z) < 0.08
+      laneRest.current = inLane && slow ? laneRest.current + dt : 0
+      if (laneRest.current > 0.6) {
+        laneRest.current = 0
+        s.readyBall()
+        s.setEvent('BALL RETURNED — launch again')
+      }
+    }
+
     if (s.phase !== 'ready') {
       power.current = 0
       wasCharging.current = false

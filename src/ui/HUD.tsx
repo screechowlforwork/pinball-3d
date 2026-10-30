@@ -71,7 +71,7 @@ function LaunchHint() {
 function GameOver() {
   const phase = useGame((s) => s.phase)
   const score = useGame((s) => s.score)
-  const best = useGame((s) => s.best)
+  const isNewBest = useGame((s) => s.isNewBest)
   const newGame = useGame((s) => s.newGame)
   if (phase !== 'gameover') return null
   return (
@@ -79,7 +79,7 @@ function GameOver() {
       <div className="flex w-72 flex-col items-center gap-4 rounded-xl bg-surface-container-high p-8 shadow-2xl">
         <div className="text-2xl font-medium text-on-surface">Game Over</div>
         <div className="font-mono text-4xl font-bold text-primary">{score.toLocaleString()}</div>
-        {score >= best && score > 0 && (
+        {isNewBest && (
           <div className="rounded-md bg-tertiary-container px-3 py-1 text-xs font-medium text-on-tertiary-container">
             New best!
           </div>
