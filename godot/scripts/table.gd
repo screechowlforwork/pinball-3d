@@ -1,6 +1,7 @@
 extends Node3D
 
 const Session = preload("res://scripts/session.gd")
+const ToneBank = preload("res://scripts/tone_bank.gd")
 const INK := Color("101b2d")
 const MINT := Color("94ebcd")
 const CORAL := Color("ffab91")
@@ -30,11 +31,11 @@ var pause_button: Button
 var sound_button: Button
 var sound: AudioStreamPlayer
 var muted := false
+var tone_bank := ToneBank.new()
 var impact_count := 0
 var launch_count := 0
 var drain_count := 0
 var score_events: Dictionary = {}
-var frame_samples: Array[float] = []
 
 func _ready() -> void:
 	load_record()
@@ -361,8 +362,7 @@ func _physics_process(delta: float) -> void:
 			beep(120, 0.2)
 			if game.phase == Session.Phase.GAME_OVER: save_record()
 
-func _process(delta: float) -> void:
-	if frame_samples.size() < 3600: frame_samples.append(delta)
+func _process(_delta: float) -> void:
 	refresh_ui()
 
 func style(color: Color, radius: int = 18) -> StyleBoxFlat:
@@ -450,10 +450,7 @@ func make_ui() -> void:
 	text_label(column, "HOW TO PLAY", 13, MINT)
 	text_label(column, "← / Z     Left flipper\n→ / M    Right flipper\nSpace    Charge & launch\nEsc         Pause", 16, Color("bdccda"))
 	pause_button = button(column, "Pause", toggle_pause)
-	sound_button = button(column, "Sound on", func():
-		muted = not muted
-		sound_button.text = "Sound off" if muted else "Sound on"
-		if muted: sound.stop())
+	sound_button = button(column, "Sound off" if muted else "Sound on", func(): set_muted(not muted))
 	var controls := HBoxContainer.new()
 	root.add_child(controls)
 	controls.position = Vector2(40, 724)
@@ -505,26 +502,24 @@ func refresh_ui() -> void:
 
 func beep(frequency: float, duration: float) -> void:
 	if muted or not is_instance_valid(sound): return
-	var wave := AudioStreamWAV.new()
-	wave.format = AudioStreamWAV.FORMAT_16_BITS
-	wave.mix_rate = 22050
-	var count := int(duration * wave.mix_rate)
-	var data := PackedByteArray()
-	data.resize(count * 2)
-	for i in count:
-		var envelope := pow(1.0 - float(i) / count, 2)
-		data.encode_s16(i * 2, int(sin(TAU * frequency * i / wave.mix_rate) * envelope * 4000))
-	wave.data = data
-	sound.stream = wave
+	sound.stream = tone_bank.get_tone(frequency, duration)
 	sound.play()
+
+func set_muted(value: bool) -> void:
+	muted = value
+	sound_button.text = "Sound off" if muted else "Sound on"
+	if muted: sound.stop()
+	save_record()
 
 func load_record() -> void:
 	var config := ConfigFile.new()
 	if config.load("user://record.cfg") == OK:
 		game.best = maxi(0, int(config.get_value("orbit", "best", 0)))
+		muted = bool(config.get_value("orbit", "muted", false))
 
 func save_record() -> void:
 	var config := ConfigFile.new()
 	config.set_value("orbit", "best", game.best)
+	config.set_value("orbit", "muted", muted)
 	var error := config.save("user://record.cfg")
 	if error != OK: push_warning("Best score could not be saved: %s" % error)

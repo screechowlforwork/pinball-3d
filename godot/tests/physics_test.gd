@@ -55,6 +55,13 @@ func run() -> void:
 	table.toggle_pause()
 	check(not table.held.left and not table.launch_pending and table.ball.freeze, "Pause releases controls and freezes ball")
 	table.toggle_pause()
+	table.clear_controls()
+	await place(Vector3(1.2, 0.3, 6.65), Vector3.ZERO)
+	var previous_impacts: int = table.impact_count
+	table.set_control("right", "test", true)
+	await frames(20)
+	check(table.impact_count > previous_impacts and table.ball.linear_velocity.z < 0, "Right flipper contact sends ball up-table")
+	table.clear_controls()
 	await place(Vector3(4.35, 0.3, 8.5), Vector3.ZERO)
 	var lives: int = table.game.balls
 	table.set_control("launch", "test", true)
