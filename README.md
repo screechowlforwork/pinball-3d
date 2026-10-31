@@ -29,9 +29,33 @@ export GODOT=/Applications/Godot.app/Contents/MacOS/Godot
 3球排出でゲーム終了。Play againで新しいセッションが始まります。
 バンパー100点、スリングショット50点、ターゲット250点、ロールオーバー150点。
 シューターレーンに戻った球は再発射できます。ナッジ/ティルトは初版には含めていません。
+Effectsボタンで軌跡・接触リング・浮遊得点・バンパーの発光を抑制できます。
+この設定も保存され、目標ランプ・得点・残り時間は省略しません。最小ウィンドウは885×600です。
 フォーカスを失うと自動的に一時停止し、押下中の操作を解放します。
 ベスト記録は `user://record.cfg`（macOSのGodotアプリデータ領域）にのみ保存。
 同点は新記録扱いにしません。
+
+## 得点を伸ばすには
+
+- **レーン**：上部の1〜3を各1回通ると、固定+500点と倍率+1（最大×5）。ランプは消えて再挑戦できます。
+  同じ点灯済みレーンでも通常得点は入りますが、進捗は増えません。倍率は実際に球を失うと×1へ戻ります。
+- **コンボ**：レーンとターゲットの異なるショットを3秒以内に続けると、最大5連続。
+  直前と同じIDは進行・時間延長をせず、バンパー/スリングショットはコンボに影響しません。
+  連続数が増えたときだけ固定 `100 × (連続数−1)` 点を追加。5連続後は異なるショットで時間を延長できますが追加ボーナスはありません。
+- **Orbit Rush**：左側の3ターゲットを各1回当てると20秒間、通常接触点がさらに×2。
+  発動中に再発動/延長はできず、終了時にターゲットランプが消えて再挑戦できます。
+- 通常接触点は `基礎点 × レーン倍率 × Rush倍率`。レーン完成+500とコンボ加点には倍率が掛かりません。
+  完成させたショットは**遷移前**の倍率で計算し、新倍率/Rushは次の接触から適用します。
+- **Ball Save**：各球の最初の実発射から8秒間、1度だけ排出を救済。球数を減らさず0.8秒後に同じ球を戻します。
+  レーン/ターゲット/倍率/Rushは維持し、コンボは解除。レーンへの帰還・再発射では延長も再装填もしません。
+  本当に球を失うと球単位の進捗はすべて消えます。ポーズ中・再配置待ち中はルールの時間が止まります。
+
+### デザインの参考
+
+[Medieval Madness rules](https://www.pinball.org/rules/medievalmadness.html) の発射直後のボールセーブと点灯目標、
+[Zen Mars table guide](https://www.pinballfx.com/press/table_guides/Mars%20Table%20Guide%20By%20ShoryukenToTheChin.pdf) の
+3レーンによる倍率進行とミッションを、一般的なゲーム構造の参考にしました。
+盤面レイアウト・画像・音声は転載せず、Orbit独自のシングルボールルールとミント/コーラルの落ち着いた表示で実装しています。
 
 ## 検証コマンド
 
@@ -40,9 +64,11 @@ export GODOT=/Applications/Godot.app/Contents/MacOS/Godot
 ```sh
 "$GODOT" --headless --path godot --editor --import --quit
 "$GODOT" --headless --path godot --script res://tests/session_test.gd
+"$GODOT" --headless --path godot --script res://tests/rules_test.gd
 mkdir -p builds/physics-test-home
 HOME="$PWD/builds/physics-test-home" "$GODOT" --headless --path godot --script res://tests/physics_test.gd
 HOME="$PWD/builds/physics-test-home" "$GODOT" --headless --path godot --script res://tests/audio_test.gd
+HOME="$PWD/builds/physics-test-home" "$GODOT" --headless --path godot --script res://tests/effects_test.gd
 ```
 
 GodotのimportでGDScriptをパース・型検査します。状態テストは加点・3回排出・再開・
@@ -52,6 +78,20 @@ GodotのimportでGDScriptをパース・型検査します。状態テストは�
 固定平面上の3D剛体に盤面下向きの力を加え、フリッパーは物理tickで回転します。
 音テストはPCMの振幅・長さ・再利用、即時消音・設定保存を検証します。
 ヘッドレスの再生状態検証は、実際の音声出力や音質の検証ではありません。
+
+ルールテストは固定ボーナス・倍率・連続ID・Rush・救済/実損失と時間停止を分離して検証します。
+効果テストは接触クールダウン・上限/破棄・ポーズ停止・Reduced設定とランプ保持を検証します。
+
+### 注入状態の見た目確認（実プレイとは別）
+
+```sh
+mkdir -p builds/preview-home
+HOME="$PWD/builds/preview-home" "$GODOT" --path godot --script res://tests/visual_preview.gd
+```
+
+これはレーン・ターゲットをコードで完成させ、Rush/コンボ/軌跡/加点を静止表示するプレビューです。
+画面にも「CONTROLLED PREVIEW」と表示し、自然な実プレイの証拠としては扱いません。
+本番.appからは `tests/*` を除外しています。状態が注入されたプレビューを通常ゲームとして配布しません。
 
 ### 描画ありのフレーム間隔測定
 
@@ -86,7 +126,23 @@ macOSの「システム設定 → プライバシーとセキュリティ」か�
 セキュリティ機能を全体で無効化しないでください。将来の一般配布にはDeveloper ID署名と公証が必要です。
 Universal出力は両CPUでの実機検証を意味しません。
 
-## 実施済み検証と制限
+## 今回のルール/視覚効果の検証
+
+- macOS arm64 VMでimportと状態・ルール・物理・音・効果テストが成功。
+  救済後の同一球復帰、期限切れ後の実損失、重複排出防止は制御物理/状態テストで検証。
+- 新しい書き出し済み.appの実入力で、倍率上昇・COMBO 5/5・ランプ・加点リング/球跡、
+  ポーズ中の時計停止・フォーカス喪失時の解放、3球終了（016600点）と再開を確認。
+  Effects reducedで演出を抑制し、通常終了・再起動後も設定とBESTが保持されることを確認。
+- デフォルト1180×800と小さい900×650ウィンドウ、全画面の描画を確認。HUD/操作ボタンのはみ出しなし。
+- **実プレイでのBall Saveによる救済は未確認**。限定試行4球はいずれも期限後に排出しました。
+  自然なOrbit Rush達成も未確認です。注入プレビューによるRush/コンボ/効果の見た目確認とは区別します。
+- 新ビルドの性能測定は行っていません。音の聴覚評価とIntel実機検証も未実施です。
+  音テスト終了時の既知の4 ObjectDB instances警告は残っています（assertion/終了コードは成功）。
+
+## 以前のビルドの検証と共通制限
+
+以下の実測値と実入力結果は品質改善コミット `7abd829` までのものです。
+新しいルール/視覚効果を含むビルドの性能値ではありません。
 
 - macOS 26.6.2 / Apple Silicon (arm64)、Apple Paravirtual Metal GPUのVMで検証。
 - 上記import・状態テスト・左右の制御物理テスト・音データ/再生状態テスト・ZIP整合性・ad-hoc署名検証が成功。
@@ -109,6 +165,7 @@ Universal出力は両CPUでの実機検証を意味しません。
 - `godot/scripts/session.gd` — UIから独立した状態・スコア
 - `godot/scripts/table.gd` — 盤面、入力、物理、UI、合成音
 - `godot/scripts/tone_bank.gd` — 事前生成する効果音キャッシュ
+- `godot/scripts/effects.gd` — 上限付き接触効果・軌跡・浮遊点数・発光
 - `godot/tests/` — 状態・制御物理・音テストと描画あり計測
 - `godot/export_presets.cfg` — 秘密情報を含まないmacOSプリセット
 
