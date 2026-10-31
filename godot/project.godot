@@ -1,0 +1,27 @@
+config_version=5
+
+[application]
+config/name="Orbit Pinball"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.7", "Mobile")
+config/description="A tactile, native 3D pinball table."
+
+[display]
+window/size/viewport_width=1180
+window/size/viewport_height=800
+window/size/window_width_override=1180
+window/size/window_height_override=800
+window/stretch/mode="canvas_items"
+
+[physics]
+common/physics_ticks_per_second=120
+3d/physics_engine="Jolt Physics"
+3d/default_gravity=0.0
+
+[rendering]
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
+rendering_device/driver.macos="metal"
+textures/vram_compression/import_etc2_astc=true
+textures/default_filters/use_nearest_mipmap_filter=false
+environment/defaults/default_clear_color=Color(0.035, 0.055, 0.09, 1)
