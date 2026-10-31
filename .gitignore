@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Godot generated state and native exports
+.godot/
+builds/
+*.tmp
